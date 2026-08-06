@@ -1,0 +1,6 @@
+apiVersion: v2
+name: otel-observability
+description: Local OpenTelemetry metrics, tracing, and logging stack for Minikube
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,77 @@
+global:
+  namespace: observability
+  environment: local
+
+images:
+  app: { repository: otel-springboot-demo, tag: local, pullPolicy: IfNotPresent }
+  collector: { repository: otel/opentelemetry-collector-contrib, tag: 0.103.0 }
+  prometheus: { repository: prom/prometheus, tag: v2.53.0 }
+  grafana: { repository: grafana/grafana, tag: 11.1.0 }
+  jaeger: { repository: jaegertracing/all-in-one, tag: 1.57 }
+  loki: { repository: grafana/loki, tag: 3.0.0 }
+  promtail: { repository: grafana/promtail, tag: 3.0.0 }
+  otelJavaAgent:
+    version: 2.6.0
+    url: https://repo1.maven.org/maven2/io/opentelemetry/javaagent/opentelemetry-javaagent/2.6.0/opentelemetry-javaagent-2.6.0.jar
+
+app:
+  replicas: 1
+  serviceName: otel-springboot-demo
+  version: 0.0.1
+  service: { type: NodePort, port: 8080, nodePort: 30080 }
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+collector:
+  replicas: 1
+  service: { type: ClusterIP, otlpGrpcPort: 4317, otlpHttpPort: 4318, prometheusPort: 8889 }
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+prometheus:
+  replicas: 1
+  service: { type: NodePort, port: 9090, nodePort: 30090 }
+  retention: 7d
+  storage: 5Gi
+  resources:
+    requests: { cpu: 200m, memory: 512Mi }
+    limits: { cpu: 800m, memory: 1Gi }
+
+grafana:
+  replicas: 1
+  adminUser: admin
+  adminPassword: admin
+  service: { type: NodePort, port: 3000, nodePort: 30000 }
+  storage: 1Gi
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+jaeger:
+  replicas: 1
+  service: { type: NodePort, uiPort: 16686, uiNodePort: 30686, otlpGrpcPort: 4317, otlpHttpPort: 4318 }
+  storage: 5Gi
+  retention: 7d
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+loki:
+  replicas: 1
+  service: { type: ClusterIP, port: 3100 }
+  storage: 5Gi
+  retention: 7d
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+promtail:
+  enabled: true
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+
+persistence: { enabled: true, storageClass: standard }
+ingress: { enabled: false, className: nginx, hostSuffix: otel.local }
