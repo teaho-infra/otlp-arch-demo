@@ -33,7 +33,7 @@ spec:
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: "deployment.environment={{ .Values.global.environment }},service.version={{ .Values.app.version }}"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://{{ include "otel-observability.fullname" . }}-collector:{{ .Values.collector.service.otlpGrpcPort }}"
+              value: "http://otel-collector:{{ .Values.collector.service.otlpGrpcPort }}"
             - name: OTEL_EXPORTER_OTLP_PROTOCOL
               value: grpc
             - name: OTEL_TRACES_EXPORTER
