@@ -1,0 +1,41 @@
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: {{ include "otel-observability.namespace" . }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  resources: { requests: { storage: {{ .Values.prometheus.storage }} } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jaeger-data
+  namespace: {{ include "otel-observability.namespace" . }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  resources: { requests: { storage: {{ .Values.jaeger.storage }} } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-data
+  namespace: {{ include "otel-observability.namespace" . }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  resources: { requests: { storage: {{ .Values.loki.storage }} } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: {{ include "otel-observability.namespace" . }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  resources: { requests: { storage: {{ .Values.grafana.storage }} } }
+{{- end }}

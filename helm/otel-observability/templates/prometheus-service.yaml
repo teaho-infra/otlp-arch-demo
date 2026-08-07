@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: {{ include "otel-observability.namespace" . }}
+spec:
+  type: {{ .Values.prometheus.service.type }}
+  selector: { app.kubernetes.io/component: prometheus }
+  ports:
+    - name: http
+      port: {{ .Values.prometheus.service.port }}
+      targetPort: http
+      {{- if eq .Values.prometheus.service.type "NodePort" }}
+      nodePort: {{ .Values.prometheus.service.nodePort }}
+      {{- end }}

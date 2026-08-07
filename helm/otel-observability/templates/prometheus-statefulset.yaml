@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: prometheus
+  namespace: {{ include "otel-observability.namespace" . }}
+spec:
+  serviceName: prometheus
+  replicas: {{ .Values.prometheus.replicas }}
+  selector:
+    matchLabels: { app.kubernetes.io/component: prometheus }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/component: prometheus }
+    spec:
+      containers:
+        - name: prometheus
+          image: "{{ .Values.images.prometheus.repository }}:{{ .Values.images.prometheus.tag }}"
+          args: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time={{ .Values.prometheus.retention }}", "--web.enable-lifecycle"]
+          ports: [{ name: http, containerPort: 9090 }]
+          volumeMounts:
+            - { name: config, mountPath: /etc/prometheus/prometheus.yml, subPath: prometheus.yml }
+            - { name: rules, mountPath: /etc/prometheus/rules }
+            - { name: data, mountPath: /prometheus }
+          readinessProbe: { httpGet: { path: /-/ready, port: http }, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /-/healthy, port: http }, initialDelaySeconds: 15, periodSeconds: 10 }
+          resources:
+            {{- toYaml .Values.prometheus.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap: { name: prometheus-config }
+        - name: rules
+          configMap: { name: prometheus-rules }
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: { claimName: prometheus-data }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
