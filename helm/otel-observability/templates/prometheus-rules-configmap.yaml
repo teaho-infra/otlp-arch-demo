@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: {{ include "otel-observability.namespace" . }}
+data:
+  observability-rules.yml: |
+    groups:
+      - name: otel-demo-recording
+        interval: 15s
+        rules:
+          - record: demo:http_requests_per_second
+            expr: sum(rate(http_server_requests_seconds_count[5m]))
+          - record: demo:http_5xx_ratio
+            expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count[5m])), 1)
+          - record: demo:http_request_p95_seconds
+            expr: histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket[5m])))
+          - record: demo:orders_per_second
+            expr: sum(rate(demo_orders_total[5m]))
+          - record: otel:collector_receiver_refused_per_second
+            expr: sum(rate(otelcol_receiver_refused_spans[5m]) or rate(otelcol_receiver_refused_metric_points[5m]) or rate(otelcol_receiver_refused_log_records[5m]))
+      - name: otel-demo-alerts
+        rules:
+          - alert: DemoServiceDown
+            expr: up{job="springboot-actuator"} == 0
+            for: 2m
+          - alert: CollectorDown
+            expr: up{job="otel-collector"} == 0
+            for: 2m
+          - alert: DemoHigh5xxRate
+            expr: demo:http_5xx_ratio > 0.05
+            for: 2m
+          - alert: DemoHighP95Latency
+            expr: demo:http_request_p95_seconds > 1
+            for: 2m
+          - alert: PrometheusTargetDown
+            expr: up == 0
+            for: 2m

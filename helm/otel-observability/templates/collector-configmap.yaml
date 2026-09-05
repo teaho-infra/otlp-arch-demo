@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: {{ include "otel-observability.namespace" . }}
+  labels:
+    {{- include "otel-observability.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 400
+        spike_limit_mib: 100
+      resource:
+        attributes:
+          - key: deployment.environment
+            value: {{ .Values.global.environment | quote }}
+            action: upsert
+          - key: k8s.namespace.name
+            value: {{ include "otel-observability.namespace" . | quote }}
+            action: upsert
+      batch:
+        timeout: 5s
+        send_batch_size: 512
+
+    exporters:
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        resource_to_telemetry_conversion:
+          enabled: true
+      otlp/jaeger:
+        endpoint: jaeger:{{ .Values.jaeger.service.otlpGrpcPort }}
+        tls:
+          insecure: true
+        sending_queue:
+          enabled: true
+          queue_size: 512
+        retry_on_failure:
+          enabled: true
+      loki:
+        endpoint: http://loki:{{ .Values.loki.service.port }}/loki/api/v1/push
+        retry_on_failure:
+          enabled: true
+      debug:
+        verbosity: basic
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, resource, batch]
+          exporters: [otlp/jaeger, debug]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, resource, batch]
+          exporters: [prometheus, debug]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, resource, batch]
+          exporters: [loki, debug]

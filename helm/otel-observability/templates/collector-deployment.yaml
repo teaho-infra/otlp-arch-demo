@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: {{ include "otel-observability.namespace" . }}
+  labels:
+    {{- include "otel-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  replicas: {{ .Values.collector.replicas }}
+  selector:
+    matchLabels:
+      {{- include "otel-observability.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: collector
+  template:
+    metadata:
+      labels:
+        {{- include "otel-observability.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: collector
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/collector-configmap.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: collector
+          image: "{{ .Values.images.collector.repository }}:{{ .Values.images.collector.tag }}"
+          args: ["--config=/conf/config.yaml"]
+          ports:
+            - { name: otlp-grpc, containerPort: 4317 }
+            - { name: otlp-http, containerPort: 4318 }
+            - { name: metrics, containerPort: 8889 }
+            - { name: health, containerPort: 13133 }
+          volumeMounts:
+            - { name: config, mountPath: /conf }
+          readinessProbe:
+            httpGet: { path: /, port: health }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: health }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.collector.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: {{ include "otel-observability.namespace" . }}
+  labels:
+    {{- include "otel-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  type: {{ .Values.collector.service.type }}
+  selector:
+    {{- include "otel-observability.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+  ports:
+    - { name: otlp-grpc, port: {{ .Values.collector.service.otlpGrpcPort }}, targetPort: otlp-grpc }
+    - { name: otlp-http, port: {{ .Values.collector.service.otlpHttpPort }}, targetPort: otlp-http }
+    - { name: metrics, port: {{ .Values.collector.service.prometheusPort }}, targetPort: metrics }
+    - { name: health, port: 13133, targetPort: health }
