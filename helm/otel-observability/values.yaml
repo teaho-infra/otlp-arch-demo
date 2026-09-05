@@ -69,6 +69,11 @@ loki:
 
 promtail:
   enabled: true
+  # Directory where the container runtime stores per-container log files.
+  # Docker:    /var/lib/docker/containers
+  # containerd: /var/log/pods (logs are symlinked from /var/log/containers)
+  # Minikube default is containerd; override here if running on Docker.
+  containerLogsDir: /var/log/pods
   resources:
     requests: { cpu: 50m, memory: 64Mi }
     limits: { cpu: 200m, memory: 128Mi }

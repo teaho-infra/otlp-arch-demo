@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: {{ include "otel-observability.namespace" . }}
+spec:
+  replicas: {{ .Values.grafana.replicas }}
+  selector: { matchLabels: { app.kubernetes.io/component: grafana } }
+  template:
+    metadata: { labels: { app.kubernetes.io/component: grafana } }
+    spec:
+      containers:
+        - name: grafana
+          image: "{{ .Values.images.grafana.repository }}:{{ .Values.images.grafana.tag }}"
+          env:
+            - { name: GF_SECURITY_ADMIN_USER, value: {{ .Values.grafana.adminUser | quote }} }
+            - { name: GF_SECURITY_ADMIN_PASSWORD, value: {{ .Values.grafana.adminPassword | quote }} }
+            - { name: GF_USERS_ALLOW_SIGN_UP, value: "false" }
+          ports: [{ name: http, containerPort: 3000 }]
+          volumeMounts:
+            - { name: datasources, mountPath: /etc/grafana/provisioning/datasources }
+            - { name: dashboards-config, mountPath: /etc/grafana/provisioning/dashboards }
+            - { name: dashboard, mountPath: /var/lib/grafana/dashboards/otel-demo-dashboard.json, subPath: dashboard.json }
+            - { name: data, mountPath: /var/lib/grafana }
+          readinessProbe: { httpGet: { path: /api/health, port: http }, initialDelaySeconds: 10, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /api/health, port: http }, initialDelaySeconds: 30, periodSeconds: 10 }
+          resources:
+            {{- toYaml .Values.grafana.resources | nindent 12 }}
+      volumes:
+        - name: datasources
+          configMap: { name: grafana-datasources, items: [{ key: datasources.yaml, path: datasources.yaml }] }
+        - name: dashboards-config
+          configMap: { name: grafana-datasources, items: [{ key: dashboards.yaml, path: dashboards.yaml }] }
+        - name: dashboard
+          configMap: { name: grafana-datasources, items: [{ key: dashboard.json, path: dashboard.json }] }
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: { claimName: grafana-data }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

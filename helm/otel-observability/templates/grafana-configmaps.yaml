@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: {{ include "otel-observability.namespace" . }}
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:{{ .Values.prometheus.service.port }}
+        isDefault: true
+      - name: Jaeger
+        uid: Jaeger
+        type: jaeger
+        access: proxy
+        url: http://jaeger:{{ .Values.jaeger.service.uiPort }}
+        jsonData:
+          tracesToLogs:
+            datasourceUid: Loki
+            tags: ["trace_id", "traceID"]
+            filterByTraceID: true
+      - name: Loki
+        uid: Loki
+        type: loki
+        access: proxy
+        url: http://loki:{{ .Values.loki.service.port }}
+        jsonData:
+          derivedFields:
+            - name: TraceID
+              matcherRegex: "trace[_-]?id[=: ]+([a-f0-9]{16,32})"
+              url: "$${__value.raw}"
+              datasourceUid: Jaeger
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: OpenTelemetry Demo
+        orgId: 1
+        folder: OpenTelemetry
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        options:
+          path: /var/lib/grafana/dashboards
+  dashboard.json: |
+    {{- .Files.Get "dashboards/otel-demo-dashboard.json" | nindent 4 }}
