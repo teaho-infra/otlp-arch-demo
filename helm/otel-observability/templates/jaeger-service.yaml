@@ -7,6 +7,11 @@ spec:
   type: {{ .Values.jaeger.service.type }}
   selector: { app.kubernetes.io/component: jaeger }
   ports:
-    - { name: ui, port: {{ .Values.jaeger.service.uiPort }}, targetPort: ui, nodePort: {{ .Values.jaeger.service.uiNodePort }} }
+    - name: ui
+      port: {{ .Values.jaeger.service.uiPort }}
+      targetPort: ui
+      {{- if eq .Values.jaeger.service.type "NodePort" }}
+      nodePort: {{ .Values.jaeger.service.uiNodePort }}
+      {{- end }}
     - { name: otlp-grpc, port: {{ .Values.jaeger.service.otlpGrpcPort }}, targetPort: otlp-grpc }
     - { name: otlp-http, port: {{ .Values.jaeger.service.otlpHttpPort }}, targetPort: otlp-http }

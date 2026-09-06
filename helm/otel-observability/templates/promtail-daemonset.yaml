@@ -48,6 +48,12 @@ spec:
     metadata: { labels: { app.kubernetes.io/component: promtail } }
     spec:
       serviceAccountName: promtail
+      # Pod-level security context (runs once for the whole pod):
+      # - runAsUser/runAsGroup match the host's containerd log writer
+      # - nofile raises the per-pod file-descriptor limit so Promtail can
+      #   tail logs from many containers without "too many open files".
+      securityContext:
+        {{- toYaml .Values.promtail.podSecurityContext | nindent 8 }}
       containers:
         - name: promtail
           image: "{{ .Values.images.promtail.repository }}:{{ .Values.images.promtail.tag }}"
@@ -57,10 +63,14 @@ spec:
             - { name: config, mountPath: /etc/promtail }
             - { name: positions, mountPath: /run/promtail }
             - { name: pods, mountPath: /var/log/pods, readOnly: true }
+            {{- if ne .Values.promtail.containerLogsDir "/var/log/pods" }}
             - { name: containers, mountPath: {{ .Values.promtail.containerLogsDir }}, readOnly: true }
+            {{- end }}
           readinessProbe: { httpGet: { path: /ready, port: http }, periodSeconds: 10 }
           resources:
             {{- toYaml .Values.promtail.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.promtail.securityContext | nindent 12 }}
       volumes:
         - name: config
           configMap: { name: promtail-config }
@@ -68,8 +78,10 @@ spec:
           emptyDir: {}
         - name: pods
           hostPath: { path: /var/log/pods }
+        {{- if ne .Values.promtail.containerLogsDir "/var/log/pods" }}
         - name: containers
           hostPath: { path: {{ .Values.promtail.containerLogsDir }} }
+        {{- end }}
 ---
 apiVersion: v1
 kind: ServiceAccount
