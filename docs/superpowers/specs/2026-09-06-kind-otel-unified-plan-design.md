@@ -30,17 +30,23 @@
 
 ## Kind 验证的边界
 
-Kind 验证可以证明 Demo、Prometheus、Jaeger、Grafana 和主要 Chart 部署链路曾经工作。由于验证时 Promtail 被禁用且 Loki 没有采集到应用日志，它不能证明日志链路或 PVC 重启恢复完成。新计划必须显式保留这些未完成项。
+Kind 验证可以证明 Demo、Prometheus、Jaeger、Grafana 和主要 Chart 部署链路曾经工作。历史验证时 Promtail 被禁用且 Loki 没有采集到应用日志，因此当时不能证明日志链路或 PVC 重启恢复完成。Task 8 已在当前 Kind 集群补齐这两项动态验收。
 
 ## 完成标准
 
 统一计划只有在以下条件全部满足后才能整体标记完成：
 
 - 单元、Helm 渲染和脚本测试全部通过。
-- 在 Kind 环境中解决或绕开 Promtail 的 `nofile` 限制，并验证 metrics、traces、logs 和 Grafana 数据源/仪表盘。
+- 在 Kind 环境中解决 Promtail 的 inotify instance 限制，并验证 metrics、traces、logs 和 Grafana 数据源/仪表盘。
 - 重启相关 Deployment、StatefulSet 和 DaemonSet 后，持久化数据仍可查询。
 - 最终验证环境、命令摘要、限制和提交状态写回统一计划。
 
+## 组件访问设计
+
+Kind 部署默认使用 ClusterIP，不直接暴露宿主机端口。交互式访问统一使用 `kubectl port-forward -n observability`：Demo `svc/demo:8080`、Grafana `svc/grafana:3000`、Prometheus `svc/prometheus:9090`、Jaeger `svc/jaeger:16686`、Loki `svc/loki:3100`。Collector 仅供遥测发送，集群内使用 `otel-collector.observability.svc.cluster.local:4317/4318`；需要宿主机调试时分别转发 4317 和 4318。Promtail 没有用户界面，通过 `kubectl logs -n observability daemonset/promtail` 和 `kubectl port-forward -n observability daemonset/promtail 19080:9080` 检查。
+
+统一计划必须给出每个组件的集群内地址、port-forward 命令、本机 URL、Grafana 默认凭据和健康/查询入口。
+
 ## 范围限制
 
-本次只整合和校正计划文档，不修改应用、Helm Chart、脚本或测试实现，不删除历史文档，也不重新部署集群。
+初始阶段只整合计划文档；经用户批准执行 Task 8 后，允许修改 Helm Chart、验证脚本和测试，并在现有 Kind 集群部署验证。历史文档和无关集群不得删除。

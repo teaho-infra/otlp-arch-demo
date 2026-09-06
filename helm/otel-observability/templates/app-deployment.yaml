@@ -17,6 +17,7 @@ spec:
       labels:
         {{- include "otel-observability.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: app
+        app: {{ .Values.app.serviceName | quote }}
     spec:
       containers:
         - name: app

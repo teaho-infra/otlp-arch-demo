@@ -20,13 +20,15 @@ data:
         pipeline_stages:
           - cri: {}
         relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: __host__
           - source_labels: [__meta_kubernetes_namespace]
             target_label: namespace
           - source_labels: [__meta_kubernetes_pod_name]
             target_label: pod
           - source_labels: [__meta_kubernetes_pod_container_name]
             target_label: container
-          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+          - source_labels: [__meta_kubernetes_pod_label_app]
             target_label: app
           - action: replace
             source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_pod_container_name]
@@ -48,15 +50,17 @@ spec:
     metadata: { labels: { app.kubernetes.io/component: promtail } }
     spec:
       serviceAccountName: promtail
-      # Pod-level security context (runs once for the whole pod):
-      # - runAsUser/runAsGroup match the host's containerd log writer
-      # - nofile raises the per-pod file-descriptor limit so Promtail can
-      #   tail logs from many containers without "too many open files".
+      # Pod-level identity and filesystem security context.
       securityContext:
         {{- toYaml .Values.promtail.podSecurityContext | nindent 8 }}
       containers:
         - name: promtail
           image: "{{ .Values.images.promtail.repository }}:{{ .Values.images.promtail.tag }}"
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           args: ["-config.file=/etc/promtail/config.yaml"]
           ports: [{ name: http, containerPort: 9080 }]
           volumeMounts:

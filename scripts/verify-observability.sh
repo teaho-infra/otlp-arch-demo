@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# End-to-end verification for the otel-observability deployment on Minikube.
+# End-to-end verification for the otel-observability deployment.
 #
 # Waits for all Pods to be Ready, calls the demo app's HTTP endpoints,
-# queries Prometheus / Jaeger / Loki via minikube service URLs (NOT in-cluster
-# DNS), and asserts that Grafana data sources are provisioned. Exits
-# non-zero on any failure.
+# queries Prometheus / Jaeger / Loki, and asserts that Grafana data sources
+# are provisioned. Explicit service URL overrides support Kind port-forwards;
+# without overrides, URLs are resolved through Minikube.
 #
 # Usage: scripts/verify-observability.sh [--help]
 set -euo pipefail
@@ -13,13 +13,23 @@ usage() {
   cat <<EOF
 Usage: scripts/verify-observability.sh [--help]
 
-End-to-end verification of the otel-observability stack on Minikube.
+End-to-end verification of the otel-observability stack on Kubernetes.
 Exits non-zero if any readiness, HTTP, metrics, trace, log, or Grafana
 datasource check fails.
 
 Environment overrides:
-  VERIFY_TIMEOUT=<seconds>   Override the per-check wait timeout (default 180).
-  VERIFY_NAMESPACE=<ns>       Override the namespace (default observability).
+  VERIFY_TIMEOUT=<seconds>   Per-check wait timeout (default 180s).
+  VERIFY_NAMESPACE=<ns>     Namespace (default observability).
+  VERIFY_APP_URL=<url>      Demo URL (for example http://127.0.0.1:18080).
+  VERIFY_GRAFANA_URL=<url>  Grafana URL (for example http://127.0.0.1:13000).
+  VERIFY_PROM_URL=<url>     Prometheus URL (for example http://127.0.0.1:19090).
+  VERIFY_JAEGER_URL=<url>   Jaeger URL (for example http://127.0.0.1:16686).
+  VERIFY_LOKI_URL=<url>     Loki URL (for example http://127.0.0.1:13100).
+  VERIFY_GRAFANA_USER=<user>      Grafana API user (default admin).
+  VERIFY_GRAFANA_PASSWORD=<pass>  Grafana API password (default admin).
+
+Provide all five URL variables for Kind port-forwards. If none are provided,
+the script resolves service URLs with Minikube.
 EOF
 }
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then usage; exit 0; fi
@@ -27,8 +37,10 @@ if [[ $# -ne 0 ]]; then echo "error: unknown argument: $1" >&2; usage >&2; exit 
 
 timeout="${VERIFY_TIMEOUT:-180s}"
 namespace="${VERIFY_NAMESPACE:-observability}"
+grafana_user="${VERIFY_GRAFANA_USER:-admin}"
+grafana_password="${VERIFY_GRAFANA_PASSWORD:-admin}"
 
-for cmd in minikube kubectl curl; do
+for cmd in kubectl curl; do
   command -v "$cmd" >/dev/null || { echo "error: $cmd is required" >&2; exit 1; }
 done
 
@@ -37,18 +49,29 @@ ok()   { echo "ok:   $1"; }
 
 # 1. Wait for every Pod in the namespace to be Ready.
 echo "waiting for Pods in namespace $namespace (timeout=$timeout)..."
-kubectl wait --for=condition=Ready pod \
-  -l app.kubernetes.io/instance=otel-observability \
+kubectl wait --for=condition=Ready pod --all \
   -n "$namespace" --timeout="$timeout" \
   || fail "pods not Ready in $timeout"
 ok "all pods Ready"
 
-# 2. Resolve service URLs from Minikube (host-side, not in-cluster DNS).
-app_url="$(minikube service demo -n "$namespace" --url 2>/dev/null | head -n 1 || true)"
-grafana_url="$(minikube service grafana -n "$namespace" --url 2>/dev/null | head -n 1 || true)"
-prom_url="$(minikube service prometheus -n "$namespace" --url 2>/dev/null | head -n 1 || true)"
-jaeger_url="$(minikube service jaeger -n "$namespace" --url 2>/dev/null | head -n 1 || true)"
-loki_url="$(minikube service loki -n "$namespace" --url 2>/dev/null | head -n 1 || true)"
+# 2. Use explicit URLs (Kind port-forwards) or resolve all URLs via Minikube.
+app_url="${VERIFY_APP_URL:-}"
+grafana_url="${VERIFY_GRAFANA_URL:-}"
+prom_url="${VERIFY_PROM_URL:-}"
+jaeger_url="${VERIFY_JAEGER_URL:-}"
+loki_url="${VERIFY_LOKI_URL:-}"
+
+if [[ -z "$app_url$grafana_url$prom_url$jaeger_url$loki_url" ]]; then
+  command -v minikube >/dev/null || { echo "error: provide all VERIFY_*_URL variables or install minikube" >&2; exit 1; }
+  app_url="$(minikube service demo -n "$namespace" --url 2>/dev/null | head -n 1 || true)"
+  grafana_url="$(minikube service grafana -n "$namespace" --url 2>/dev/null | head -n 1 || true)"
+  prom_url="$(minikube service prometheus -n "$namespace" --url 2>/dev/null | head -n 1 || true)"
+  jaeger_url="$(minikube service jaeger -n "$namespace" --url 2>/dev/null | head -n 1 || true)"
+  loki_url="$(minikube service loki -n "$namespace" --url 2>/dev/null | head -n 1 || true)"
+elif [[ -z "$app_url" || -z "$grafana_url" || -z "$prom_url" || -z "$jaeger_url" || -z "$loki_url" ]]; then
+  echo "error: provide all five VERIFY_*_URL variables, or none for Minikube" >&2
+  exit 1
+fi
 [[ -n "$app_url" ]]    || fail "could not resolve demo service URL"
 [[ -n "$grafana_url" ]] || fail "could not resolve grafana service URL"
 [[ -n "$prom_url" ]]   || fail "could not resolve prometheus service URL"
@@ -57,7 +80,7 @@ loki_url="$(minikube service loki -n "$namespace" --url 2>/dev/null | head -n 1 
 ok "resolved 5 service URLs"
 
 # 3. Demo app HTTP endpoints.
-curl --fail --silent "${app_url}/api/hello" | grep -q 'Hello' || fail "/api/hello did not return expected body"
+curl --fail --silent "${app_url}/api/hello" | grep -qi 'hello opentelemetry' || fail "/api/hello did not return expected body"
 ok "/api/hello"
 
 curl --fail --silent "${app_url}/api/orders/1001" | grep -q '1001' || fail "/api/orders/1001 did not return expected id"
@@ -88,11 +111,14 @@ loki_resp="$(curl --fail --silent -G "${loki_url}/loki/api/v1/query_range" \
   --data-urlencode 'query={namespace="observability",app="otel-springboot-demo"}' \
   --data-urlencode 'limit=10')" || fail "loki query_range failed"
 echo "$loki_resp" | grep -q '"status":"success"' || fail "loki query did not return success"
+if echo "$loki_resp" | grep -Eq '"result"[[:space:]]*:[[:space:]]*\[[[:space:]]*\]'; then
+  fail "loki query returned no demo logs"
+fi
 ok "loki query_range for demo logs"
 
 # 7. Grafana data sources.
 for ds in Prometheus Jaeger Loki; do
-  resp="$(curl --fail --silent "${grafana_url}/api/datasources/name/${ds}")" || fail "grafana datasource ${ds} not found"
+  resp="$(curl --fail --silent -u "${grafana_user}:${grafana_password}" "${grafana_url}/api/datasources/name/${ds}")" || fail "grafana datasource ${ds} not found"
   ok "grafana datasource ${ds}"
 done
 

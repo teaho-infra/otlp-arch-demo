@@ -77,14 +77,11 @@ promtail:
   resources:
     requests: { cpu: 50m, memory: 64Mi }
     limits: { cpu: 200m, memory: 128Mi }
-  # Pod-level security context (file descriptors etc.).
+  # Pod-level identity and filesystem security context.
   podSecurityContext:
     runAsUser: 0
     runAsGroup: 0
     fsGroup: 0
-    nofile:
-      soft: 65536
-      hard: 65536
   # Container-level security context (capabilities etc.).
   securityContext:
     capabilities:

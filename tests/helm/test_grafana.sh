@@ -14,12 +14,36 @@ repo_root="$(cd "${script_dir}/../.." && pwd)"
 chart_dir="${repo_root}/helm/otel-observability"
 values_file="${chart_dir}/values-minikube.yaml"
 helm_bin="${HELM_BIN:-helm}"
+kind_values_file="${chart_dir}/values-kind.yaml"
+
+kind_promtail_enabled_count="$(grep -Ec '^  enabled:' "$kind_values_file")"
+if [ "$kind_promtail_enabled_count" -ne 1 ]; then
+  echo "FAIL: values-kind.yaml must define promtail.enabled exactly once" >&2
+  exit 1
+fi
+
+if ! grep -q '^  enabled: true' "$kind_values_file"; then
+  echo "FAIL: values-kind.yaml must enable Promtail for Kind verification" >&2
+  exit 1
+fi
 
 rendered="$(mktemp)"
-trap 'rm -f "$rendered"' EXIT
+kind_rendered="$(mktemp)"
+trap 'rm -f "$rendered" "$kind_rendered"' EXIT
 
 # 1. Render the chart.
 "$helm_bin" template otel-observability "$chart_dir" -f "$values_file" > "$rendered"
+"$helm_bin" template otel-observability "$chart_dir" --namespace observability -f "$values_file" -f "$kind_values_file" > "$kind_rendered"
+
+if grep -q "^kind: Namespace$" "$kind_rendered"; then
+  echo "FAIL: Kind render must let Helm manage namespace creation" >&2
+  exit 1
+fi
+
+if grep -q "nofile:" "$kind_rendered"; then
+  echo "FAIL: Kind render must not emit unsupported securityContext.nofile" >&2
+  exit 1
+fi
 
 # 2. Helpers: assert a substring is present.
 expect_present() {
@@ -69,11 +93,15 @@ expect_present "Application Logs" "Loki logs panel"
 # 6. Promtail DaemonSet present with required volumes and labels.
 expect_present "kind: DaemonSet" "Promtail DaemonSet kind"
 expect_present "name: promtail" "Promtail name"
+expect_present "fieldPath: spec.nodeName" "Promtail HOSTNAME matches the Kubernetes node"
 expect_present "path: ${promtail_dir}" "Promtail container-logs hostPath"
 expect_present "target_label: namespace" "Promtail relabel: namespace"
 expect_present "target_label: pod" "Promtail relabel: pod"
 expect_present "target_label: container" "Promtail relabel: container"
+expect_present 'app: "otel-springboot-demo"' "Demo pod exposes the Loki app label"
+expect_present "source_labels: \[__meta_kubernetes_pod_label_app\]" "Promtail reads the Demo app label"
 expect_present "target_label: app" "Promtail relabel: app"
+expect_present "target_label: __host__" "Promtail binds discovered pods to their node"
 
 # 7. Low-cardinality check: forbid indexing high-cardinality pod identity
 #    (uid, ip, hostname) as Loki labels.

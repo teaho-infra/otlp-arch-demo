@@ -1,7 +1,7 @@
 # values-kind.yaml — overrides for running on the existing kind-migration cluster.
 #
-# Use this when you don't want to (or can't) start a fresh Minikube. Switch
-# all services from NodePort to ClusterIP; reach them via kubectl
+# Use this to deploy the observability stack on Kind. Switch all services
+# from NodePort to ClusterIP; reach them via kubectl
 # port-forward. The Helm release will go into the `observability`
 # namespace which is separate from `migration` / `ingress`.
 #
@@ -12,6 +12,9 @@
 #     -f helm/otel-observability/values-kind.yaml
 #
 # All paths below override values-minikube.yaml.
+global:
+  namespace: ""
+
 
 app:
   service:
@@ -34,10 +37,6 @@ loki:
     type: ClusterIP
 
 promtail:
-  enabled: false  # kind has a global ulimit too low for Promtail; disable for now
+  enabled: true
   # The kind-migration node uses containerd; /var/log/pods is correct.
   containerLogsDir: /var/log/pods
-  enabled: true
-
-# Loki currently does not expose a Service in the base chart; rely on the
-# in-cluster DNS name `loki.observability.svc:3100` instead of NodePort.
