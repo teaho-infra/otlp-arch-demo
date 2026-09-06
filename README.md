@@ -84,3 +84,44 @@ http_server_requests_seconds_count
 ```bash
 APP_PORT=8080 docker compose up --build
 ```
+
+## 在 Minikube 上运行 (推荐)
+
+`docker compose` 适合单节点测试。**推荐在 Minikube 上跑**以获得完整的 Kubernetes
+体验（Promtail DaemonSet 抓取、StatefulSet PVC、Loki query_range、Jaeger OTLP 等）。
+
+仓库在 `feature/minikube-otel-cluster` 分支提供了一个 umbrella Helm chart，
+把 demo + collector + Prometheus + Grafana + Jaeger + Loki + Promtail 全部装进
+`observability` namespace。
+
+前置：minikube / kubectl / helm / mvn / docker（参见 `helm/otel-observability/README.md`）。
+
+```bash
+# 启动（自动起 minikube 集群、build image、helm install）
+git checkout feature/minikube-otel-cluster
+./scripts/minikube-up.sh
+
+# 端到端验证 HTTP / Prometheus / Jaeger / Loki / Grafana
+./scripts/verify-observability.sh
+
+# 清理（保留 Minikube 集群和 PVC 数据）
+./scripts/minikube-down.sh
+
+# 清理 + 删 PVC（数据丢失）
+./scripts/minikube-down.sh --delete-data
+```
+
+安装完会打印所有 service 的 NodePort URL。详细故障排查参见
+`helm/otel-observability/README.md` 和 `tests/integration/README.md`。
+
+## 关键文件
+
+- `src/main/java/com/example/otel/DemoController.java`: 业务接口和自定义 OpenTelemetry 指标。
+- `Dockerfile`: 将 OpenTelemetry Java Agent 放入应用镜像。
+- `docker-compose.yml`: 启动 App、Collector、Prometheus、Grafana（**仅作参考**，推荐用 Helm + Minikube）。
+- `otel-collector-config.yml`: 接收 OTLP 并导出指标到 Prometheus。
+- `prometheus/prometheus.yml`: 抓取 Collector 和 Spring Boot Actuator。
+- `grafana/`: 自动配置 Prometheus 数据源和 dashboard。
+- `helm/otel-observability/`: 在 Minikube 上跑的 umbrella Helm chart。
+- `scripts/`: Minikube 生命周期和验证脚本（仅在 `feature/minikube-otel-cluster` 分支）。
+- `docs/superpowers/plans/`: 实施计划和审计报告。

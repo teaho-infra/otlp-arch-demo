@@ -69,9 +69,29 @@ loki:
 
 promtail:
   enabled: true
+  # Directory where the container runtime stores per-container log files.
+  # Docker:    /var/lib/docker/containers
+  # containerd: /var/log/pods (logs are symlinked from /var/log/containers)
+  # Minikube default is containerd; override here if running on Docker.
+  containerLogsDir: /var/log/pods
   resources:
     requests: { cpu: 50m, memory: 64Mi }
     limits: { cpu: 200m, memory: 128Mi }
+  # Pod-level security context (file descriptors etc.).
+  podSecurityContext:
+    runAsUser: 0
+    runAsGroup: 0
+    fsGroup: 0
+    nofile:
+      soft: 65536
+      hard: 65536
+  # Container-level security context (capabilities etc.).
+  securityContext:
+    capabilities:
+      drop: ["ALL"]
+      add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
 
 persistence: { enabled: true, storageClass: standard }
 ingress: { enabled: false, className: nginx, hostSuffix: otel.local }

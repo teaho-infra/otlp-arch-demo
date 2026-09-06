@@ -1,0 +1,21 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {"id": 1, "title": "HTTP Requests Per Second", "type": "timeseries", "targets": [{"expr": "sum(rate(http_server_requests_seconds_count[1m]))", "refId": "A"}]},
+    {"id": 2, "title": "HTTP 5xx Rate", "type": "timeseries", "targets": [{"expr": "sum(rate(http_server_requests_seconds_count{status=~\"5..\"}[1m]))", "refId": "A"}]},
+    {"id": 3, "title": "HTTP Latency P95", "type": "timeseries", "targets": [{"expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[5m])) by (le))", "refId": "A"}]},
+    {"id": 4, "title": "Custom OTel Orders", "type": "timeseries", "targets": [{"expr": "sum(rate(demo_orders_total[1m]))", "refId": "A"}]},
+    {"id": 5, "title": "JVM Memory", "type": "timeseries", "targets": [{"expr": "sum(jvm_memory_used_bytes) by (area)", "refId": "A"}]},
+    {"id": 6, "title": "JVM Threads", "type": "timeseries", "targets": [{"expr": "sum(jvm_threads_live_threads) by (area)", "refId": "A"}]},
+    {"id": 7, "title": "Collector Health", "type": "timeseries", "targets": [{"expr": "up", "refId": "A"}]},
+    {"id": 8, "title": "Application Logs", "type": "logs", "datasource": {"type": "loki", "uid": "Loki"}, "targets": [{"expr": "{namespace=\"observability\", app=\"$service\"}", "refId": "A"}]}
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "templating": {"list": [{"name": "service", "type": "custom", "current": {"text": "otel-springboot-demo", "value": "otel-springboot-demo"}, "query": "otel-springboot-demo", "label": "Service"}]},
+  "time": {"from": "now-15m", "to": "now"},
+  "title": "OpenTelemetry Spring Boot Demo",
+  "uid": "otel-springboot-demo",
+  "version": 2
+}
