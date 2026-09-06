@@ -478,7 +478,7 @@ docker exec migration-control-plane sysctl -w fs.inotify.max_user_instances=1024
 - [x] Loki 返回应用日志证据。
 - [x] 重启前后 metrics、traces、logs 查询摘要。
 - [x] PVC Bound 状态及恢复结论。
-- [ ] 最终提交、分支或合并状态。
+- [x] 最终提交：已直接提交到 `main`，实现提交 `e08e780`。
 
 ## 整体完成标准
 
@@ -489,7 +489,7 @@ docker exec migration-control-plane sysctl -w fs.inotify.max_user_instances=1024
 - [x] Promtail Ready，Loki 可以查询到 Demo 应用日志。
 - [x] Prometheus、Jaeger、Loki 在 Pod 重启后保留并返回既有数据。
 - [x] Task 8 的动态验证命令全部退出 0。
-- [ ] 最终验收记录已写回本文件且工作树干净。
+- [x] 最终验收记录已写回本文件；文档收口提交后工作树干净。
 
 ## 安全回滚与清理
 
