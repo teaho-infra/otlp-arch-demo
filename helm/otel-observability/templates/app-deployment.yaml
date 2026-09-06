@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "otel-observability.fullname" . }}-app
+  name: demo
   namespace: {{ include "otel-observability.namespace" . }}
   labels:
     {{- include "otel-observability.labels" . | nindent 4 }}
